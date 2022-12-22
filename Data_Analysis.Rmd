@@ -1,0 +1,108 @@
+---
+title: "Data_Analysis_Fieldwork"
+author: "Aurora Mills"
+date: "21.21.22"
+output: html_document
+---
+
+```{r, eval=FALSE}
+install.packages("haven")
+install.packages("dplyr")
+install.packages("feather")
+install.packages("cowplot")
+install.packages("survey")
+install.packages("car")
+```
+
+```{r}
+library(dplyr)
+library(haven)
+library(feather)
+library(ggplot2)
+library(table1) 
+library(survey)
+library(car)
+```
+
+
+```{r}
+brfss<- read_xpt("LLCP2021XPT.zip")
+smart<-read_xpt("MMSA2021_XPT.zip")
+#data is from 2021
+```
+
+
+```{r}
+#SMART DATA 
+smart.variables <- dplyr::rename(smart, county= "MMSANAME", 
+                                 county.weight= "_MMSAWT", 
+                                 education = "_EDUCAG", 
+                                 sex = "_SEX", 
+                                 income = "_INCOMG1", 
+                                 race = "_MRACE1",
+                                 age= "_AGE_G", 
+                                 smoker.status = "_SMOKER3", 
+                                 former.smoker = "_RFSMOK3", 
+                                 asthma= "_CASTHM1", 
+                                 state= "STATERE1") 
+#selected variables 
+selected.smart<- (dplyr::select(smart.variables, county, county.weight, education, sex, income, race, age, smoker.status, former.smoker, asthma, state)) 
+
+#Sex
+selected.smart$sex<- car::recode(selected.smart$sex, recodes = "1='0'; 2='1'")
+
+#Income <35, 35-50k, 50-100k, >100k
+selected.smart$income<- car::recode(selected.smart$income, recodes= "1:3= '0'; 4= '1'; 5= '2'; 6:7= '3'; 9= 'NA'")
+
+#Race
+selected.smart$race<- car::recode(selected.smart$race, recodes = "1= '0'; 2= '1'; 3= '2'; 4= '3'; 5= '4'; 6= '5'; 7= '6'; 7:9= 'NA'")
+
+#Age 18-24yr, 25-44yr, 45-64yr, >65
+selected.smart$age<- car::recode(selected.smart$age, recodes = "1='0'; 2:3= '1'; 4:5= '2'; 6= '3'")
+
+#Education 
+selected.smart$education<- car::recode(selected.smart$education, recodes = "1= '0'; 2= '1'; 3:4= '2'; 9= 'NA'")
+
+#Smoker Status
+selected.smart$smoker.status<- car::recode(selected.smart$smoker.status, recodes= "1:2='2'; 3= '1'; 4= '0'; 9= 'NA'")
+
+#Asthma Status 
+selected.smart$asthma<- car::recode(selected.smart$asthma, recodes = "1= '0'; 2='1'; 9='NA'")
+
+
+
+```
+
+```{r}
+brfss<- dplyr::rename(brfss, 
+                      lungcancer= "CNCRTYP1", 
+                      state= "_STATE") 
+
+selected.brfss<- (dplyr::select(brfss, lungcancer, state)) 
+
+selected.brfss$lungcancer<- car::recode(selected.brfss$lungcancer, recodes = "1='0'; 2='0'; 3='0'; 4='0'; 5='0'; 5='0'; 6='0'; 7='0'; 8='0'; 9='0'; 10='0'; 11='0'; 12='0'; 13='0'; 14='0'; 15='0'; 16='0'; 17='0'; 18='0'; 19='0'; 20='0'; 21='0'; 22='0'; 23='0'; 24='1'; 25='0'; 26='0'; 27='0'; 28='0'; 29='0'; 30='0'; 77:99=NA")# This is wrong
+
+
+total.data<- merge(x=complete.smart, y=complete.brfss, by="state", all=TRUE)
+#SMART and BRFSS merge data with only lung cancer variable. Don't run- no lungca data.  
+
+join<-dplyr::left_join(complete.smart, complete.brfss)
+#Join SMART and BRFSS. Why is there less obs? 
+
+
+```
+
+
+```{r}
+
+table1(~sex + age + age65 + race + income | lungcancer, data= join)
+
+
+
+```
+
+```{r}
+
+
+```
+
