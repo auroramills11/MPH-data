@@ -1,0 +1,68 @@
+---
+title: "BRFSS Data"
+author: "Aurora Mills"
+date: "2023-01-03"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+brfss<- read_xpt("LLCP2021XPT.zip")
+
+brfss<- dplyr::rename(brfss, 
+                      lungcancer= "CNCRTYP1", 
+                      state= "_STATE", 
+                      educa= "_EDUCAG", 
+                      income= "INCOME3",
+                      sex= "SEXVAR", 
+                      race= "_RACE",
+                      age= "_AGE_G",
+                      bmi= "_BMI5CAT", 
+                      smoke.status= "_SMOKER3",
+                      asthma= "ASTHNOW") 
+
+selected.brfss<- (dplyr::select(brfss, lungcancer, state, educa, income, sex, race, age, bmi, smoke.status, asthma)) 
+
+#Lung Cancer---- Should I use mutate function here instead? 
+selected.brfss$lungcancer<- car::recode(selected.brfss$lungcancer, recodes = "1='0'; 2='0'; 3='0'; 4='0'; 5='0'; 5='0'; 6='0'; 7='0'; 8='0'; 9='0'; 10='0'; 11='0'; 12='0'; 13='0'; 14='0'; 15='0'; 16='0'; 17='0'; 18='0'; 19='0'; 20='0'; 21='0'; 22='0'; 23='0'; 24='1'; 25='0'; 26='0'; 27='0'; 28='0'; 29='0'; 30='0'; 77:99='NA'", as.factor = T)
+selected.brfss$lungcancer<- relevel(selected.brfss$lungcancer, ref= '0')
+
+#Asthma Status
+selected.brfss$asthma<- car::recode(selected.brfss$asthma, recodes = "1='1'; 2='0'; else=NA", as.factor = T)
+selected.brfss$asthma<-relevel(selected.brfss$asthma, ref= '0')
+
+#Smoking Status 
+selected.brfss$smoke.status<- car::recode(selected.brfss$smoke.status, recodes = "1:2='current smoker'; 3='former smoker'; 4='never smoker'; 9='NA'", as.factor = T)
+selected.brfss$smoke.status<- relevel(selected.brfss$smoke.status, ref = 'never smoker')
+
+#Sex
+selected.brfss$sex<- car::recode(selected.brfss$sex, recodes= "1='Male'; 2='Female'", as.factor =T)
+selected.brfss$sex<- relevel(selected.brfss$sex, ref= 'Male')
+
+#Education: No High School, High School, Some/Higher Education  
+selected.brfss$educa<- car::recode(selected.brfss$educa, recodes= "1='NoHighSchool'; 2='HighSchool'; 3:4='Some/HigherEduca'; 9= 'NA'", as.factor=T)
+selected.brfss$educa<-relevel(selected.brfss$educa, ref= 'Some/HigherEduca')
+
+#Race
+selected.brfss$race<- car::recode(selected.brfss$race, recodes = "1='White'; 2='Black'; 3= 'AmericanIndian/AlaskanNative'; 4='Asian'; 5='NativeHawaiian/PacificIslander'; 6='Other'; 7='Multiracial'; 8='Hispanic'; 9='NA'", as.factor = T)
+selected.brfss$race<-relevel(selected.brfss$race, ref= 'White')
+
+#Age 18-34, 35-54, 55-64, >65
+selected.brfss$age<- car::recode(selected.brfss$age, recodes= "1:2= '18-34'; 3:4='35-54'; 5='55-64'; 6='>65'", as.factor=T)
+selected.brfss$age<-relevel(selected.brfss$age, ref='18-34')
+
+#BMI
+selected.brfss$bmi<- car::recode(selected.brfss$bmi, recodes = "1='Underweight'; 2='Normal'; 3='Overweight'; 4='Obese'; else='NA'", as.factor = T)
+selected.brfss$bmi<- relevel(selected.brfss$bmi, ref = 'Normal')
+
+#Income <$25k, $25-75k, >$75k
+selected.brfss$income<- car::recode(selected.brfss$income, recodes = "1:4='Low'; 5:7='Middle'; 8:11='High'; else='NA'", as.factor = T)
+selected.brfss$income<- relevel(selected.brfss$income, ref = 'High')
+
+```
+
+
+
