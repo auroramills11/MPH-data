@@ -1,7 +1,7 @@
 ---
 title: "Data_Analysis_Fieldwork"
 author: "Aurora Mills"
-date: "01.02.2023"
+date: "01.05.2023"
 output: html_document
 ---
 
@@ -12,6 +12,10 @@ install.packages("feather")
 install.packages("cowplot")
 install.packages("survey")
 install.packages("car")
+install.packages("gtsummary")
+install.packages("MatchIt")
+install.packages("mosaic")
+install.packages("PARGASITE")
 ```
 
 ```{r}
@@ -22,6 +26,10 @@ library(ggplot2)
 library(table1) 
 library(survey)
 library(car)
+library(gtsummary)
+library(MatchIt)
+library(tidyverse)
+library(mosaic)
 ```
 
 
@@ -29,113 +37,124 @@ library(car)
 #SMART DATA 
 smart<-read_xpt("MMSA2021_XPT.zip")
 smart.variables <- dplyr::rename(smart, county= "MMSANAME", 
-                                 county.weight= "_MMSAWT", 
+                                 county.weight= "_MMSAWT",
+                                 state= "STATERE1", 
                                  education = "_EDUCAG", 
                                  sex = "_SEX", 
                                  income = "_INCOMG1", 
                                  race = "_MRACE1",
                                  age= "_AGE_G", 
-                                 smoker.status = "_SMOKER3", 
-                                 former.smoker = "_RFSMOK3", 
-                                 asthma= "_CASTHM1", 
-                                 state= "STATERE1", 
-                                 code="DISPCODE") 
+                                 age65= "_AGE65YR", 
+                                 BMI= "_BMI5CAT",
+                                 SMOKERSTATUS = "_SMOKER3", 
+                                 FORMERSMOKER = "_RFSMOK3", 
+                                 ASTHMANOW= "_CASTHM1", 
+                                 ASTHMA= "_ASTHMS1") #current,former,never
+                              
 #selected variables 
-selected.smart<- (dplyr::select(smart.variables, county, county.weight, education, sex, income, race, age, smoker.status, former.smoker, asthma, state, code)) 
+selected.smart<- (dplyr::select(smart.variables, county, county.weight, state, education, sex, income, race, age, age65, BMI, SMOKERSTATUS, FORMERSMOKER, ASTHMANOW, ASTHMA)) 
 
 #Sex
-selected.smart$sex<- car::recode(selected.smart$sex, recodes = "1='0'; 2='1'")
+selected.smart$sex<- car::recode(selected.smart$sex, recodes = "1='Male'; 2='Female'")
+
+#Race
+selected.smart$race<- car::recode(selected.smart$race, recodes = "1= 'White'; 2= 'Black'; 3= 'AmericanIndian/AlaskanNative'; 4= 'Asian'; 5= 'NativeHawaiian/PacificIslander'; 6= 'Other'; 7= 'Multiracial'; 77:99= NA")
+
+#Asthma Current Status 
+selected.smart$ASTHMANOW<- car::recode(selected.smart$ASTHMANOW, recodes = "1= '0'; 2='1'; 9= NA")
+
+#Asthma 
+selected.smart$ASTHMA<- car::recode(selected.smart$ASTHMA, recodes= "1= 'Asthma'; 2= 'FormerAsthma'; 3='NeverAsthma'; 9=NA")
 
 #Income <35, 35-50k, 50-100k, >100k
-selected.smart$income<- car::recode(selected.smart$income, recodes= "1:3= '0'; 4= '1'; 5= '2'; 6:7= '3'; 9= '99'")
-
-#Race
-selected.smart$race<- car::recode(selected.smart$race, recodes = "1= '0'; 2= '1'; 3= '2'; 4= '3'; 5= '4'; 6= '5'; 7= '6'; 7:9= '99'")
-
-#Age 18-24yr, 25-44yr, 45-64yr, >65
-selected.smart$age<- car::recode(selected.smart$age, recodes = "1='0'; 2:3= '1'; 4:5= '2'; 6= '3'")
-
-#Education 
-selected.smart$education<- car::recode(selected.smart$education, recodes = "1= '0'; 2= '1'; 3:4= '2'; 9= '99'")
+selected.smart$income<- car::recode(selected.smart$income, recodes= "1:3= '<$35k'; 4= '$35-50k'; 5= '$50-100k'; 6:7= '>100k';9=NA")
 
 #Smoker Status
-selected.smart$smoker.status<- car::recode(selected.smart$smoker.status, recodes= "1:2='2'; 3= '1'; 4= '0'; 9= '99'")
+selected.smart$SMOKERSTATUS<- car::recode(selected.smart$SMOKERSTATUS, recodes= "1:2='Current Smoker'; 3= 'Former Smoker'; 4= 'Never Smoker';9= NA")
 
-#Asthma Status 
-selected.smart$asthma<- car::recode(selected.smart$asthma, recodes = "1= '0'; 2='1'; 9='99'")
+#Age 18-24yr, 25-44yr, 45-64yr, >65
+selected.smart$age<- car::recode(selected.smart$age, recodes = "1='18-24'; 2:3= '25-44'; 4:5= '45-64'; 6= '>65'")
 
-selected.smart<- tidyr::drop_na(selected.smart)
+#Age for Stratification 
+selected.smart$age65<- car::recode(selected.smart$age65, recodes = "1= '0'; 2= '1'; 3= NA")
 
-```
-
-```{r}
-brfss<- read_xpt("LLCP2021XPT.zip")
-
-brfss<- dplyr::rename(brfss, 
-                      lungcancer= "CNCRTYP1", 
-                      state= "_STATE", 
-                      educa= "_EDUCAG", 
-                      income= "INCOME3",
-                      sex= "SEXVAR", 
-                      race= "_RACE",
-                      age= "_AGE_G",
-                      bmi= "_BMI5CAT", 
-                      smoke.status= "_SMOKER3",
-                      asthma= "ASTHNOW") 
-
-selected.brfss<- (dplyr::select(brfss, lungcancer, state, educa, income, sex, race, age, bmi, smoke.status, asthma)) 
-
-#Lung Cancer
-selected.brfss$lungcancer<- car::recode(selected.brfss$lungcancer, recodes = "1='0'; 2='0'; 3='0'; 4='0'; 5='0'; 5='0'; 6='0'; 7='0'; 8='0'; 9='0'; 10='0'; 11='0'; 12='0'; 13='0'; 14='0'; 15='0'; 16='0'; 17='0'; 18='0'; 19='0'; 20='0'; 21='0'; 22='0'; 23='0'; 24='1'; 25='0'; 26='0'; 27='0'; 28='0'; 29='0'; 30='0'; 77:99='NA'", as.factor = T)
-selected.brfss$lungcancer<- relevel(selected.brfss$lungcancer, ref= '0')
-
-#Asthma Status
-selected.brfss$asthma<- car::recode(selected.brfss$asthma, recodes = "1='1'; 2='0'; else=NA", as.factor = T)
-selected.brfss$asthma<-relevel(selected.brfss$asthma, ref= '0')
-
-#Smoking Status 
-selected.brfss$smoke.status<- car::recode(selected.brfss$smoke.status, recodes = "1:2='current smoker'; 3='former smoker'; 4='never smoker'; 9='NA'", as.factor = T)
-selected.brfss$smoke.status<- relevel(selected.brfss$smoke.status, ref = 'never smoker')
-
-#Sex
-selected.brfss$sex<- car::recode(selected.brfss$sex, recodes= "1='Male'; 2='Female'", as.factor =T)
-selected.brfss$sex<- relevel(selected.brfss$sex, ref= 'Male')
-
-#Education: No High School, High School, Some/Higher Education  
-selected.brfss$educa<- car::recode(selected.brfss$educa, recodes= "1='NoHighSchool'; 2='HighSchool'; 3:4='Some/HigherEduca'; 9= 'NA'", as.factor=T)
-selected.brfss$educa<-relevel(selected.brfss$educa, ref= 'Some/HigherEduca')
-
-#Race
-selected.brfss$race<- car::recode(selected.brfss$race, recodes = "1='White'; 2='Black'; 3= 'AmericanIndian/AlaskanNative'; 4='Asian'; 5='NativeHawaiian/PacificIslander'; 6='Other'; 7='Multiracial'; 8='Hispanic'; 9='NA'", as.factor = T)
-selected.brfss$race<-relevel(selected.brfss$race, ref= 'White')
-
-#Age 18-34, 35-54, 55-64, >65
-selected.brfss$age<- car::recode(selected.brfss$age, recodes= "1:2= '18-34'; 3:4='35-54'; 5='55-64'; 6='>65'", as.factor=T)
-selected.brfss$age<-relevel(selected.brfss$age, ref='18-34')
+#Education 
+selected.smart$education<- car::recode(selected.smart$education, recodes = "1= 'No HighSchool'; 2= 'HighSchool'; 3:4= 'Some/HigherEduca'; 9= NA")
 
 #BMI
-selected.brfss$bmi<- car::recode(selected.brfss$bmi, recodes = "1='Underweight'; 2='Normal'; 3='Overweight'; 4='Obese'; else='NA'", as.factor = T)
-selected.brfss$bmi<- relevel(selected.brfss$bmi, ref = 'Normal')
+selected.smart$BMI<- car::recode(selected.smart$BMI, recodes= "1= 'Underweight'; 2='Normal'; 3:4='Overweight/Obese'; else= NA")
+#Former Smoker?
 
-#Income <$25k, $25-75k, >$75k
-selected.brfss$income<- car::recode(selected.brfss$income, recodes = "1:4='Low'; 5:7='Middle'; 8:11='High'; else='NA'", as.factor = T)
-selected.brfss$income<- relevel(selected.brfss$income, ref = 'High')
 
+```
+
+```{r}
+complete.smart<- tidyr::drop_na(selected.smart) #Don't run yet!Why doesn't this drop all NAs???
+
+complete.smart %>% gtsummary::tbl_summary()
 
 ```
 
 
 ```{r}
-table1(~sex + race + age + bmi | lungcancer, data=selected.brfss)
+selected.smart %>% gtsummary::tbl_summary()
 
-table1(~educa + income | lungcancer, data = selected.brfss)
+selected.smart %>% 
+  dplyr::select(-c(age65,FORMERSMOKER, state, county, county.weight)) %>%
+  gtsummary::tbl_summary(by= ASTHMANOW)
 
-table1(~smoke.status + asthma | lungcancer, data = selected.brfss)
+```
+
+
+```{r}
+ggplot(data=selected.smart, aes(x=ASTHMANOW))+
+  geom_bar()
+
+ggplot(data=selected.smart, aes(x=ASTHMA))+
+  geom_bar()
+
+ggplot(data = selected.smart, aes(x= race, fill= sex)) + 
+  geom_bar(position = "dodge")  + 
+  theme(axis.text.x = element_text(angle = 90))
+  
+
+```
+
+
+```{r}
+#Gets p-Value for Table1 
+pvalue<- function(x, ...) {
+  y<- unlist(x)
+  g<- factor(rep(1:length(x), times=sapply(x, length)))
+  if (is.numeric(y)) {
+    p<- t.test(y~g)$p.value
+  } else {
+  p<- chisq.test(table(y,g))$p.value
+  }
+  c("", sub("<", "&lt;", format.pval(p, digits=3, eps=0.001)))
+}
+
+
+table1(~sex + race + education + income | ASTHMANOW, 
+       data= selected.smart, overall =F, extra.col = list(`P-value`=pvalue))
+
+table1(~county | ASTHMANOW, 
+       data= selected.smart, overall =F, extra.col = list(`P-value`=pvalue))
+
+#Potential confounding 
+table1(~factor(age65) + SMOKERSTATUS + BMI | ASTHMANOW, 
+       data= selected.smart, overall =F, extra.col = list(`P-value`=pvalue))
 
 ```
 
 ```{r}
+#I need to get logistic regressions of the variables. Do I use complete.smart
+tally(~ ASTHMANOW | age65, margins=TRUE, data= complete.smart)
 
+m0<- glm(ASTHMANOW ~ 1, data = selected.smart)
+summary(m0)
 
+m1<- glm(~ASTHMANOW | age65, family = "binomial", data = complete.smart)
+summary(m1)
 ```
 
