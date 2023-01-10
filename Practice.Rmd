@@ -1,0 +1,70 @@
+---
+title: "practice_data"
+author: "Aurora Mills"
+date: "2023-01-10"
+output: html_document
+---
+
+```{r}
+install.packages("tigris")
+install.packages("sf")
+install.packages("nhanesA")
+install.packages("plyr")
+install.packages("rgdal")
+install.packages("tidycensus")
+install.packages("ggsn")
+
+
+```
+
+```{r}
+practicesmart<-read_xpt("MMSA2021_XPT.zip")
+practice <- dplyr::rename(practicesmart, county= "MMSANAME", 
+                                 county.weight= "_MMSAWT",
+                                 state= "STATERE1", 
+                                 education = "_EDUCAG", 
+                                 sex = "_SEX", 
+                                 income = "_INCOMG1", 
+                                 race = "_MRACE1",
+                                 age= "_AGE_G", 
+                                 age65= "_AGE65YR", 
+                                 BMI= "_BMI5CAT",
+                                 SMOKERSTATUS = "_SMOKER3", 
+                                 FORMERSMOKER = "_RFSMOK3", 
+                                 ASTHMANOW= "_CASTHM1", 
+                                 ASTHMA= "_ASTHMS1")
+                              
+#selected variables 
+practice<- (dplyr::select(practice, county, county.weight, state, education, sex, income, race, age, age65, BMI, SMOKERSTATUS, FORMERSMOKER, ASTHMANOW, ASTHMA)) %>%
+  
+mutate(ASTHMANOW = ifelse(ASTHMANOW %in% c(7,9), NA, ifelse(ASTHMANOW == 2,0,1))) %>%
+mutate(ASTHMANOW = factor(ASTHMANOW, levels = c(0,1), labels = c("No Asthma", "Asthma"))) %>%
+filter(!is.na(ASTHMANOW))
+
+tally(~ ASTHMANOW | age65, margins= TRUE, data= practice)
+
+```
+
+
+```{r}
+#Census Shapefile Practice 
+library(tigris)
+library(ggplot2)
+library(sf)
+library(nhanesA)
+library(plyr)
+library(rgdal)
+library(tidycensus)
+library(ggsn)
+library(leaflet)
+
+
+#To get US counties 
+us.counties<- counties(cb = TRUE, resolution = "500k")
+t.us.counties<- shift_geometry(us.counties, position = "outside")
+ggplot(data= st_simplify(t.us.counties, dTolerance = 1e3)) +
+  geom_sf()
+
+
+```
+

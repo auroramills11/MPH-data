@@ -15,7 +15,6 @@ install.packages("car")
 install.packages("gtsummary")
 install.packages("MatchIt")
 install.packages("mosaic")
-install.packages("PARGASITE")
 ```
 
 ```{r}
@@ -30,6 +29,7 @@ library(gtsummary)
 library(MatchIt)
 library(tidyverse)
 library(mosaic)
+library(modelsummary)
 ```
 
 
@@ -49,10 +49,15 @@ smart.variables <- dplyr::rename(smart, county= "MMSANAME",
                                  SMOKERSTATUS = "_SMOKER3", 
                                  FORMERSMOKER = "_RFSMOK3", 
                                  ASTHMANOW= "_CASTHM1", 
-                                 ASTHMA= "_ASTHMS1") #current,former,never
+                                 ASTHMA= "_ASTHMS1")
                               
 #selected variables 
-selected.smart<- (dplyr::select(smart.variables, county, county.weight, state, education, sex, income, race, age, age65, BMI, SMOKERSTATUS, FORMERSMOKER, ASTHMANOW, ASTHMA)) 
+selected.smart<- (dplyr::select(smart.variables, county, county.weight, state, education, sex, income, race, age, age65, BMI, SMOKERSTATUS, FORMERSMOKER, ASTHMANOW, ASTHMA)) %>%
+
+#Asthma Status
+mutate(ASTHMANOW = ifelse(ASTHMANOW %in% c(7,9), NA, ifelse(ASTHMANOW == 2,0,1))) %>%
+mutate(ASTHMANOW = factor(ASTHMANOW, levels = c(0,1), labels = c("No Asthma", "Asthma"))) %>%
+filter(!is.na(ASTHMANOW))
 
 #Sex
 selected.smart$sex<- car::recode(selected.smart$sex, recodes = "1='Male'; 2='Female'")
@@ -60,10 +65,7 @@ selected.smart$sex<- car::recode(selected.smart$sex, recodes = "1='Male'; 2='Fem
 #Race
 selected.smart$race<- car::recode(selected.smart$race, recodes = "1= 'White'; 2= 'Black'; 3= 'AmericanIndian/AlaskanNative'; 4= 'Asian'; 5= 'NativeHawaiian/PacificIslander'; 6= 'Other'; 7= 'Multiracial'; 77:99= NA")
 
-#Asthma Current Status 
-selected.smart$ASTHMANOW<- car::recode(selected.smart$ASTHMANOW, recodes = "1= '0'; 2='1'; 9= NA")
-
-#Asthma 
+#Asthma Past 
 selected.smart$ASTHMA<- car::recode(selected.smart$ASTHMA, recodes= "1= 'Asthma'; 2= 'FormerAsthma'; 3='NeverAsthma'; 9=NA")
 
 #Income <35, 35-50k, 50-100k, >100k
@@ -83,13 +85,13 @@ selected.smart$education<- car::recode(selected.smart$education, recodes = "1= '
 
 #BMI
 selected.smart$BMI<- car::recode(selected.smart$BMI, recodes= "1= 'Underweight'; 2='Normal'; 3:4='Overweight/Obese'; else= NA")
-#Former Smoker?
 
 
 ```
 
 ```{r}
-complete.smart<- tidyr::drop_na(selected.smart) #Don't run yet!Why doesn't this drop all NAs???
+#All NAs dropped
+complete.smart<- tidyr::drop_na(selected.smart) 
 
 complete.smart %>% gtsummary::tbl_summary()
 
@@ -97,16 +99,13 @@ complete.smart %>% gtsummary::tbl_summary()
 
 
 ```{r}
+#Data Visualizations and Summary Tables 
 selected.smart %>% gtsummary::tbl_summary()
 
 selected.smart %>% 
   dplyr::select(-c(age65,FORMERSMOKER, state, county, county.weight)) %>%
   gtsummary::tbl_summary(by= ASTHMANOW)
 
-```
-
-
-```{r}
 ggplot(data=selected.smart, aes(x=ASTHMANOW))+
   geom_bar()
 
@@ -116,8 +115,6 @@ ggplot(data=selected.smart, aes(x=ASTHMA))+
 ggplot(data = selected.smart, aes(x= race, fill= sex)) + 
   geom_bar(position = "dodge")  + 
   theme(axis.text.x = element_text(angle = 90))
-  
-
 ```
 
 
@@ -148,13 +145,37 @@ table1(~factor(age65) + SMOKERSTATUS + BMI | ASTHMANOW,
 ```
 
 ```{r}
-#I need to get logistic regressions of the variables. Do I use complete.smart
-tally(~ ASTHMANOW | age65, margins=TRUE, data= complete.smart)
+#Logisitic Regression Models. (Only outcome needs to be binary)
+tally(~ ASTHMANOW | age65, margins=TRUE, data= selected.smart)
 
-m0<- glm(ASTHMANOW ~ 1, data = selected.smart)
-summary(m0)
+ggplot(data = selected.smart, aes(x = factor(ASTHMANOW), fill = sex))+
+  geom_bar(position = "fill")
 
-m1<- glm(~ASTHMANOW | age65, family = "binomial", data = complete.smart)
-summary(m1)
+ggplot(data = selected.smart, aes(x = factor(ASTHMANOW), fill= race)) + 
+  geom_bar(position = "fill")
+
+chisq.test(table(selected.smart$ASTHMANOW, selected.smart$sex))
+
+summary((glm(ASTHMANOW ~ sex, data = selected.smart, family = binomial())))
+
+exp(coef(glm(ASTHMANOW ~ sex, data = selected.smart, family = binomial()))) #odds ratio
+
+chisq.test(table(selected.smart$ASTHMANOW, selected.smart$race))
+
+summary((glm(ASTHMANOW ~ race, data = selected.smart, family = binomial())))
+
+#Combined models
+asthma.fit<- glm(ASTHMANOW ~ race + age65 + sex, data = selected.smart, family = binomial())
+summary(asthma.fit)
+exp(coef(asthma.fit)) #odds ratio
+
+asthma.fit2<- glm(ASTHMANOW ~ BMI + FORMERSMOKER + age65, data = selected.smart, family = binomial())
+summary(asthma.fit2)
+
+```
+
+
+```{r}
+#Census Data and MMSA
 ```
 
