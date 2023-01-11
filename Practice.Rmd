@@ -13,15 +13,15 @@ install.packages("plyr")
 install.packages("rgdal")
 install.packages("tidycensus")
 install.packages("ggsn")
-
+install.packages("maps")
 
 ```
 
 ```{r}
 practicesmart<-read_xpt("MMSA2021_XPT.zip")
-practice <- dplyr::rename(practicesmart, county= "MMSANAME", 
+practice <- dplyr::rename(practicesmart, subregion= "MMSANAME", 
+                                  MMSA= "_MMSA", 
                                  county.weight= "_MMSAWT",
-                                 state= "STATERE1", 
                                  education = "_EDUCAG", 
                                  sex = "_SEX", 
                                  income = "_INCOMG1", 
@@ -35,13 +35,12 @@ practice <- dplyr::rename(practicesmart, county= "MMSANAME",
                                  ASTHMA= "_ASTHMS1")
                               
 #selected variables 
-practice<- (dplyr::select(practice, county, county.weight, state, education, sex, income, race, age, age65, BMI, SMOKERSTATUS, FORMERSMOKER, ASTHMANOW, ASTHMA)) %>%
+practice<- (dplyr::select(practice, MMSA, subregion, county.weight, education, sex, income, race, age, age65, BMI, SMOKERSTATUS, FORMERSMOKER, ASTHMANOW, ASTHMA)) %>%
   
 mutate(ASTHMANOW = ifelse(ASTHMANOW %in% c(7,9), NA, ifelse(ASTHMANOW == 2,0,1))) %>%
 mutate(ASTHMANOW = factor(ASTHMANOW, levels = c(0,1), labels = c("No Asthma", "Asthma"))) %>%
 filter(!is.na(ASTHMANOW))
 
-tally(~ ASTHMANOW | age65, margins= TRUE, data= practice)
 
 ```
 
@@ -57,6 +56,7 @@ library(rgdal)
 library(tidycensus)
 library(ggsn)
 library(leaflet)
+library(maps)
 
 
 #To get US counties 
@@ -65,6 +65,32 @@ t.us.counties<- shift_geometry(us.counties, position = "outside")
 ggplot(data= st_simplify(t.us.counties, dTolerance = 1e3)) +
   geom_sf()
 
+t.us.counties
+```
+
+```{r}
+census_api_key("e63cffd78a047349becdba9f9944849969ec94c4", install = TRUE, overwrite = TRUE)
+readRenviron("~/.Renviron")
+```
+
+
+```{r}
+class(practice)
+
+vars<- load_variables(2021, "acs5")
+vars
+
+mapdata<- map_data("usa")
+view(mapdata)
+
+mapdata2<- map_data("state")
+view(mapdata2)
+
+mapdata3<- map_data("county")
+view(mapdata3)
+
+map1<- full_join(mapdata3, practice, by="subregion")
+view(map1)
 
 ```
 
